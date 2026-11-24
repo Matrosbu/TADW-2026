@@ -1,0 +1,15 @@
+services:
+  mongo:
+    image: mongo:8.0
+    volumes:
+      - mongo_data:/data/db
+      - ./dataset:/docker-entrypoint-initdb.d
+    networks: [data]
+  rabbitmq:
+    image: rabbitmq:4-management
+    networks: [backend]
+networks:
+  data:
+  backend:
+volumes:
+  mongo_data:
