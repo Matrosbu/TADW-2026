@@ -1,22 +1,46 @@
 services:
   mongo:
     image: mongo:8.0
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_ROOT_USER:-flix_admin}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD:-dev_only_change_me}
     volumes:
       - mongo_data:/data/db
       - ./dataset:/docker-entrypoint-initdb.d
     networks: [data]
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - mongosh -u "$$MONGO_INITDB_ROOT_USERNAME" -p "$$MONGO_INITDB_ROOT_PASSWORD" --authenticationDatabase admin --quiet peliculas-proyectos --eval 'db.reviews.getIndexes().some(index => index.name === "movie_id_1_user_id_1")' | grep -q true
+      start_period: 120s
+      interval: 10s
+      retries: 10
   rabbitmq:
     image: rabbitmq:4-management
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-flix}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:-dev_only_change_me}
     networks: [backend]
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      start_period: 120s
+      interval: 10s
+      retries: 10
   gateway:
     build: ./gateway
     networks: [edge, backend, data]
-    depends_on: [mongo, rabbitmq]
+    depends_on:
+      mongo:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
   frontend:
     build: ./frontend
     ports: ["8080:80"]
     networks: [edge]
-    depends_on: [gateway]
+    depends_on:
+      gateway:
+        condition: service_started
 networks:
   edge:
   backend:
