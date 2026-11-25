@@ -8,8 +8,20 @@ services:
   rabbitmq:
     image: rabbitmq:4-management
     networks: [backend]
+  gateway:
+    build: ./gateway
+    networks: [edge, backend, data]
+    depends_on: [mongo, rabbitmq]
+  frontend:
+    build: ./frontend
+    ports: ["8080:80"]
+    networks: [edge]
+    depends_on: [gateway]
 networks:
-  data:
+  edge:
   backend:
+    internal: true
+  data:
+    internal: true
 volumes:
   mongo_data:
