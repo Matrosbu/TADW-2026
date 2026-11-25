@@ -17,9 +17,12 @@ services:
       retries: 10
   rabbitmq:
     image: rabbitmq:4-management
+    hostname: rabbitmq
     environment:
       RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-flix}
       RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:-dev_only_change_me}
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
     networks: [backend]
     healthcheck:
       test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
@@ -28,6 +31,11 @@ services:
       retries: 10
   gateway:
     build: ./gateway
+    environment:
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PORT: 5672
+      RABBITMQ_USER: ${RABBITMQ_USER:-flix}
+      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:-dev_only_change_me}
     networks: [edge, backend, data]
     depends_on:
       mongo:
@@ -49,3 +57,4 @@ networks:
     internal: true
 volumes:
   mongo_data:
+  rabbitmq_data:
