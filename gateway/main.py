@@ -13,6 +13,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from catalog import router as catalog_router
 from messaging import RabbitPublisher
+from pipeline import router as pipeline_router, votes_allowed
 from storage import MongoStorage
 
 logging.basicConfig(
@@ -38,6 +39,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(lifespan=lifespan)
 app.include_router(catalog_router)
+app.include_router(pipeline_router)
 
 
 class Interaction(BaseModel):
@@ -100,6 +102,13 @@ def health():
 
 @app.post("/api/interactions")
 async def create_interaction(interaction: Interaction):
+    if not await votes_allowed(mongo.db):
+        return JSONResponse(
+            status_code=503,
+            content={"error": "El sistema está procesando los datos; probá de nuevo en unos minutos"},
+            headers={"Retry-After": "5"},
+        )
+
     interaction_id = str(uuid.uuid4())
     message = {
         "interaction_id": interaction_id,
