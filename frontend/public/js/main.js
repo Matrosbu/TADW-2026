@@ -2,8 +2,16 @@ import { installRouter, currentRoute } from "./router.js";
 import { renderCatalog } from "./views/catalog.js";
 import { renderMovie } from "./views/movie.js";
 import { el, clear } from "./dom.js";
+import { createUserSelector } from "./components/user-selector.js";
+import { startStatusPoll } from "./status.js";
 
 const app = document.querySelector("#app");
+const statusBanner = document.querySelector("#status-banner");
+const userSelector = document.querySelector("#user-selector");
+userSelector.append(createUserSelector());
+
+const statusPoll = startStatusPoll(statusBanner);
+document.addEventListener("refreshstatus", () => statusPoll.refresh());
 
 function render() {
   const route = currentRoute();
@@ -23,5 +31,9 @@ function render() {
     app.append(view);
   }
 }
+
+document.addEventListener("systemready", () => {
+  if (currentRoute().name === "catalog") renderCatalog(app);
+});
 
 installRouter(render);

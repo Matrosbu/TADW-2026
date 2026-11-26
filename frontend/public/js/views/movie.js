@@ -1,5 +1,6 @@
 import { REVIEWS_PAGE_SIZE, getMovie, getMovieReviews } from "../api.js";
 import { el, clear, poster, errorView } from "../dom.js";
+import { createReviewForm } from "../components/review-form.js";
 
 function positiveNumber(value) {
   return typeof value === "number" && Number.isFinite(value) && value > 0 ? value : null;
@@ -85,7 +86,17 @@ export async function renderMovie(app, id) {
 
       detail.append(info);
       section.append(detail);
-      await renderReviews(section, id);
+
+      const reviewsLoader = await renderReviews(section, id);
+      section.insertBefore(createReviewForm(id, async (userId, comment) => {
+        const data = await getMovieReviews(id, 1, REVIEWS_PAGE_SIZE);
+        const first = Array.isArray(data.items) ? data.items[0] : null;
+        if (first && first.user_id === userId && typeof first.comment === "string" && first.comment.trim() === comment) {
+          await reviewsLoader.reloadFirstPage();
+          return true;
+        }
+        return false;
+      }), section.querySelector(".reviews-section"));
     } catch (error) {
       if (sequence !== movieSequence || error.name === "AbortError") return;
       clear(section);
@@ -171,6 +182,12 @@ export async function renderMovie(app, id) {
     }
 
     await loadReviews();
+    return {
+      async reloadFirstPage() {
+        page = 1;
+        await loadReviews();
+      },
+    };
   }
 
   await load();
