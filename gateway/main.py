@@ -4,13 +4,16 @@ import uuid
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 
-from fastapi import Request
-from fastapi import FastAPI
+from fastapi import Request, FastAPI
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pymongo.errors import ConnectionFailure
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
+from catalog import router as catalog_router
 from messaging import RabbitPublisher
+from storage import MongoStorage
 
 logging.basicConfig(
     level=logging.INFO,
@@ -20,16 +23,21 @@ logging.basicConfig(
 logger = logging.getLogger("gateway")
 
 publisher = RabbitPublisher()
+mongo = MongoStorage()
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     await publisher.connect()
+    await mongo.connect()
+    app.state.mongo = mongo
     yield
+    await mongo.close()
     await publisher.close()
 
 
 app = FastAPI(lifespan=lifespan)
+app.include_router(catalog_router)
 
 
 class Interaction(BaseModel):
@@ -73,6 +81,16 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
     else:
         message = "datos inválidos"
     return JSONResponse(status_code=400, content={"error": message})
+
+
+@app.exception_handler(StarletteHTTPException)
+async def http_exception_handler(request: Request, exc: StarletteHTTPException):
+    return JSONResponse(status_code=exc.status_code, content={"error": str(exc.detail)})
+
+
+@app.exception_handler(ConnectionFailure)
+async def mongo_exception_handler(request: Request, exc: ConnectionFailure):
+    return JSONResponse(status_code=503, content={"error": "Mongo no disponible"})
 
 
 @app.get("/health")
